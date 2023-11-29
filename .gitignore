@@ -7,6 +7,10 @@
 *.zip
 *.csv
 
+# ignore all txt files except requirements.txt
+*.txt
+!requirements.txt
+
 # ignore pkl files for they store our session data
 *.pkl
 

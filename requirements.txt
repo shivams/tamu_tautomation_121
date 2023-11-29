@@ -1,7 +1,6 @@
 questionary
 pandas
 thefuzz
-google-auth-transport-requests
 google-auth-oauthlib
 google-api-python-client
 canvasapi
