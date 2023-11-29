@@ -110,8 +110,10 @@ class GSAssignment():
                 if score:
                     break
             except:
+                print("Waiting for the submission to be graded...")
                 sleep(5) # wait 5 seconds before trying again
 
+        print(f"Submission successfully posted for {name} with score {score}")
         return GSSubmission(subid=submission_id, name=name, email=email, score=score,
                             time=time, student_id=student_id, assignment=self)
 

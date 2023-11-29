@@ -37,6 +37,9 @@ if not GRADESCOPE_USERNAME or not GRADESCOPE_PASSWORD:
     print("You can also set these in your ~/.bashrc or ~/.zshrc file")
     raise SystemExit(101)
 
+# Globals
+DESIRED_ROW_RANGES = [[620, 669], [1015, 1049], [1340, 1374], [1685, 1724]] #These rows are allocated to me
+
 
 def questionary_select(objs: dict, prompt="Make a choice:"):
     '''
@@ -59,10 +62,16 @@ def gsheets(sheetID, sheetRange) -> list:
     '''
     Gets the Google Sheet
     '''
+    # check if google_credentials.json exists. If it does, exit the program
+    if not os.path.exists('google_credentials.json'):
+        print("You gotta get the google_credentials.json file from the Google API Console. \
+                I won't proceed without it.")
+        print("Download the file and place it in the current folder, and name it google_credentials.json")
+        raise SystemExit(101)
+
     creds = None
     # The file google_token.json stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first
-    # time.
+    # created automatically when the authorization flow completes for the first time
     if os.path.exists('google_token.json'):
         creds = Credentials.from_authorized_user_file('google_token.json', SCOPES)
     # If there are no (valid) credentials available, let the user log in.
@@ -80,12 +89,12 @@ def gsheets(sheetID, sheetRange) -> list:
     try:
         service = build('sheets', 'v4', credentials=creds)
 
-        # Processing the second sheet
         sheet = service.spreadsheets()
         result = sheet.values().get(spreadsheetId=sheetID, range=sheetRange).execute()
         values = result.get('values', [])
 
-        return values
+        df = pd.DataFrame(values[1:], columns=values[0])
+        return df
 
     except HttpError as err:
         print(err)
@@ -133,7 +142,15 @@ def canvas_get_assignment_submissions(course, prompt="Select assignment:") -> li
     Returns submissions for an assignment for a course
     '''
     #Getting asses and selecting one of them
-    print("Loading the Canvas assignments for you. This may take a few seconds.")
+
+    ass = course.get_assignment(1796405) #HW late tracker assignment
+    if questionary.confirm(f"Is this the Canvas homework HW name that tracks late HW days?: {ass.name}").ask():
+        print("Alrighty then. Loading the submissions for this HW. Give me a few seconds.")
+        subs = [] #Submissions
+        subs += ass.get_submissions(include="submission_comments")
+        return subs
+
+    print("Alright then. Loading the Canvas assignments for you. This may take a few seconds.")
     asses = list(course.get_assignments())
     choices = [str(i)+"___"+ass.name+". ID = "+str(ass.id) for i,ass in enumerate(asses)]
     selected = questionary.select(
@@ -173,12 +190,28 @@ def gradescope_init():
     return course
 
 
-def gsheets_init(homework_name_tokens, gs_ass_mapping):
+# Function to find the best match using fuzzywuzzy
+def find_best_match(variant, originals) -> (str, int):
+    '''
+    variant: The variant string
+    originals: The list of original strings to compare against
+    '''
+    best_match, highest_score = None, 0
+    for original in originals:
+        if original.lower() in variant.lower():
+            return original, 100
+        score = fuzz.ratio(original, variant)
+        if score > highest_score:
+            best_match, highest_score = original, score
+    return best_match, highest_score
+
+
+def gsheets_init(gs_ass_mapping):
     '''
     Loads the data from GSheets and returns the dataframe containing unprocessed absences
     '''
     '''
-    newdf.columns
+    df.columns
     Index(['Timestamp', 'Email Address', 'Name', 'UIN', 'CSCE Section',
            'Instructor', 'Type of request',
            'Please explain your absence or make an appeal for why it should be an excused absence.',
@@ -199,37 +232,23 @@ def gsheets_init(homework_name_tokens, gs_ass_mapping):
         # Get the latest data from Google Sheets
         sheetID = "1_m7eO_dYJjXwajyGFqEwn7GB4LmbDOMk0Ru6ALLpBfY"
         sheetRange = "Form Responses 1!A:T"
-        values = gsheets(sheetID, sheetRange)
-        if values:
-            # Convert to a dataframe
-            df = pd.DataFrame(values[1:], columns=values[0])
-            # Save the dataframe
+        df = gsheets(sheetID, sheetRange)
+        if df is not None:
             df.to_csv("absence.csv", index=False)
-            print("Data saved to data/absence.csv")
+            print("Data saved to absence.csv")
         else:
             print("Error getting data from Google Sheets")
     else:
         print("Using existing data in absence.csv")
-    # filter the rows
+
     df = pd.read_csv("absence.csv")
-    df.index = df.index + 2
+    df.index = df.index + 2 # to make sure that the index matches the row number in Google Sheets
     df.fillna('', inplace=True)
 
-    desired_row_ranges = [[620, 669], [1015, 1049], [1340, 1374], [1685, 1724]] #These rows are allocated to me
-    newdf = df.loc[desired_row_ranges[0][0]:desired_row_ranges[0][1], :]
-    for row_range in desired_row_ranges[1:]:
-        newdf = newdf.append(df.loc[row_range[0]:row_range[1], :])
-    newdf = newdf[newdf["Type of request"] == "Homework Late Day Pool"]
-    # remove with column "Request Processed" as "Yes", "Pending", "No"
-    newdf = newdf[newdf["Request Processed"] != "Yes"]
-    newdf = newdf[newdf["Request Processed"] != "Pending"]
-    newdf = newdf[newdf["Request Processed"] != "No"]
-    # remove rows if there are more than one row with the same email and homework name
-    newdf = newdf.drop_duplicates(subset=["Email Address", "Homework Name"], keep=False)
-
-    donedf = df[df["Request Processed"] == "Yes"]
-    donedf = donedf[donedf["Type of request"] == "Homework Late Day Pool"]
-
+    # First, first required clean-up  of the Google Sheets data because students have added varying names for same Homeworks
+    # these intermediary names help in mapping HW names in Google Sheet to HW names in Gradescope
+    homework_name_tokens = [ "Scaling", "Stitching", "Calculator", "Dungeon", "Crawler", 
+                            "CPPeers", "CPPers", "Rover", ]
     # refine the column Homework Name using intermediary tokens and mapping
     def refine_homework_name(x):
         for token in homework_name_tokens:
@@ -237,63 +256,66 @@ def gsheets_init(homework_name_tokens, gs_ass_mapping):
                 best_match, _ = find_best_match(token, gs_ass_mapping.keys())
                 return best_match
         return x
-    newdf["Homework Name"] = newdf["Homework Name"].apply(lambda x: refine_homework_name(x))
-    donedf["Homework Name"] = donedf["Homework Name"].apply(lambda x: refine_homework_name(x))
+    df["Homework Name"] = df["Homework Name"].apply(lambda x: refine_homework_name(x))
+
+    # getting the rows which are to be processed
+    dfs = []
+    for row_range in DESIRED_ROW_RANGES:
+        dfs.append(df.loc[row_range[0]:row_range[1]])
+    newdf = pd.concat(dfs)
+    newdf = newdf[newdf["Type of request"] == "Homework Late Day Pool"]
+    newdf = newdf[newdf["Request Processed"] != "Yes"]
+    newdf = newdf[newdf["Request Processed"] != "Pending"]
+    newdf = newdf[newdf["Request Processed"] != "No"]
+
+    # remove rows if there are more than one row with the same email and homework name
+    df = df.drop_duplicates(subset=["Email Address", "Homework Name"], keep=False)
+
+    # getting the rows which are already processed
+    donedf = df[df["Request Processed"].isin(["Yes", "Pending", "No"])]
+    #  donedf = donedf[donedf["Type of request"] == "Homework Late Day Pool"]
+
+    # reporting the rows in df, donedf, and newdf
+    print(f"Total requests: {df.shape[0]}")
+    print(f"Requests that have been processed: {donedf.shape[0]}")
+    print(f"Requests that you will be now processing : {newdf.shape[0]}")
+
 
     return newdf, donedf
 
 
-# Function to find the best match using fuzzywuzzy
-def find_best_match(variant, originals) -> (str, int):
-    '''
-    variant: The variant string
-    originals: The list of original strings to compare against
-    '''
-    best_match, highest_score = None, 0
-    for original in originals:
-        if original.lower() in variant.lower():
-            return original, 100
-        score = fuzz.ratio(original, variant)
-        if score > highest_score:
-            best_match, highest_score = original, score
-    return best_match, highest_score
-
 
 def process_late_hw(row, gs_assignments_actual, gs_assignments_redemption, gs_ass_mapping, 
-                    homework_name_tokens, canvas_late_submissions, userdb):
+                    canvas_late_submissions, userdb):
     '''
     Process late homework
     '''
-    #  import ipdb; ipdb.set_trace()
     # get the assignment name
     hw_name = row['Homework Name']
     email = row['Email Address']
 
     # get the Gradescope HW name using intermediary tokens
-    best_match, highest_score = find_best_match(hw_name, homework_name_tokens)
-    if highest_score < 90:
+    if hw_name not in gs_assignments_actual.keys():
         print(f"Can't process Homework Late Day Pool for {row['Name']}. \
-                Best match for {hw_name} is {best_match} with score {highest_score}")
+                 Because I can't understand this HW name: {hw_name} ")
         return False
-    #  hw_name = best_match
-    hw_name, _ = find_best_match(best_match, gs_assignments_actual.keys())
 
     # get the assignment objects
     hw_actual = gs_assignments_actual[hw_name]
     hw_redemption = gs_assignments_redemption[gs_ass_mapping[hw_name]]
-    #  if not hw_redemption.submissions:
-        #  print(f"Getting submissions for {hw_redemption.name}. Wait a while...")
-        #  hw_redemption.get_submissions()
-    #  submission = next(sub for sub in hw_redemption.submissions if sub.email == email)
 
     # get the highest scoring submission from the redemption assignment, and get its zip file
     submission_redemption = hw_redemption.get_submission(email=email)
+    if not submission_redemption:
+        print(f"This student: {email} did not submit a redemption homework!")
+        return False
     submission_actual = hw_actual.get_submission(email=email)
     if submission_actual:
         if submission_actual.score == submission_redemption.score:
             print("This homework has probably been processed. \
                   I see that there is a submission already uploaded on the original homework.")
             return False
+    print("Downloading the submission ZIP from Redemption HW")
     submission_zip_resp = course_gs.session.get('https://www.gradescope.com/courses/'+
                                                 course_gs.cid+'/assignments/'+hw_redemption.aid+
                                                 '/submissions/'+submission_redemption.subid+'.zip')
@@ -326,6 +348,7 @@ def process_late_hw(row, gs_assignments_actual, gs_assignments_redemption, gs_as
             Late days requested: {late_days}, Late days used: {late_score}")
     
     # Now we have the zip file from Redemption HW. We gotta transfer it to Actual
+    print("Uploading the submission ZIP to actual HW")
     new_submission = hw_actual.post_submission(temp_file_path, submission_redemption.student_id)
     if new_submission:
         print(f"Successfully posted submission for {row['Name']} with rowNum: {index}")
@@ -345,7 +368,7 @@ def process_late_hw(row, gs_assignments_actual, gs_assignments_redemption, gs_as
     if canvas_sub.edit(submission={'posted_grade': late_score+late_days}, comment={'text_comment':comments}):
     # if canvas_sub.edit(submission={'posted_grade': late_score+late_days, 'comment[text_comment]': comments}):
         print(f"Successfully updated Canvas submission for {row['Name']} with rowNum: {index}")
-        print(f"Everything has been done for this one. You may now update the Google Sheet entry for this one.")
+        print("Everything has been done for this one. You may now update the Google Sheet entry for this one.")
         os.remove(temp_file_path)
         return True
     else:
@@ -353,9 +376,10 @@ def process_late_hw(row, gs_assignments_actual, gs_assignments_redemption, gs_as
         return False
 
 
-
-if __name__ == '__main__':
-
+def init():
+    '''
+    The main init
+    '''
     pickle_use = False
     # check if data.pkl exists. If it does, load it. If not, initialize everything
     if Path('data.pkl').is_file():
@@ -377,7 +401,7 @@ if __name__ == '__main__':
         gs_assignments_redemption = {ass_name : ass for ass_name, ass in course_gs.assignments.items() if "Redemption" in ass_name}
         gs_assignments_remaining = {ass_name : ass  for ass_name, ass in course_gs.assignments.items()  if "Redemption" not in ass_name}
         gs_assignments_actual = {}
-        gs_ass_mapping = {} # Actual -> Redemption mapping
+        gs_ass_mapping = {} # Actual -> Redemption Assignment mapping
         for redemption_ass in gs_assignments_redemption.keys():
             ass_name, _ = find_best_match(redemption_ass, gs_assignments_remaining.keys())
             gs_assignments_actual[ass_name] = gs_assignments_remaining[ass_name]
@@ -387,44 +411,47 @@ if __name__ == '__main__':
         course_canvas, userdb = canvas_init()
 
     with open('data.pkl', 'wb') as f:
-        pickle.dump([course_gs, gs_assignments_actual, gs_assignments_redemption, gs_ass_mapping, course_canvas, userdb], f)
+        pickle.dump([course_gs, gs_assignments_actual, gs_assignments_redemption, 
+                     gs_ass_mapping, course_canvas, userdb], f)
+
+    return course_gs, gs_assignments_actual, gs_assignments_redemption, gs_ass_mapping, course_canvas, userdb
+
+
+if __name__ == '__main__':
+
+    # The main init initializing Canvas and Gradescope stuff
+    course_gs, gs_assignments_actual, gs_assignments_redemption, gs_ass_mapping, course_canvas, userdb = init()
 
     # This should not be pickled
     canvas_late_submissions = canvas_get_assignment_submissions(course_canvas,
-                                                 prompt="Select the Canvas Assignment which records the late days for HW:")
+                                         prompt="Select the Canvas Assignment which records the late days for HW:")
 
     # Google Sheets Init Stuff
-    homework_name_tokens = [ "Scaling", "Stitching", "Calculator", "Dungeon", "Crawler", 
-                            "CPPeers", "CPPers", "Rover", ]
-    newdf, donedf = gsheets_init(homework_name_tokens, gs_ass_mapping)
-    #  homework_names = list(newdf["Homework Name"].unique())
-    #  ['Image Scaling', 'Image Scaling part1', 'Image scaling', '[HW Redemption] Image Scaling', 'HW Image', 'Image Scaling Part 1', 'Image Scaling ', 'image scaling', '[HW] Image Scaling', '', 'String_Calculator', 'String Calculator', 'Dungeon Crawler ', 'Dungeon Crawler', 'HW Dungeon Crawler', 'Image Stitching', 'Dungeons and crawlers', 'Dungeon crawler', 'Dunegon Crawler', 'dungeonCrawler', '[HW] Hello CPPeers!', '[HW Redemption] Hello CPPeers!', 'Hello CPPeers!', 'Hello CPPeers! ( I looked at my gmail to see how many late days were used, it was 3 then 3 again now 2, therefore I have used 8/10 days now and have 2 remaining.)', 'Hello Cppers', 'Hello CPPers', 'Hello CPPeers', 'Hello CPPers!', 'Hi CPPERS', 'CPPeers', 'CPPEERS', 'Mars Rover', '[HW] Mars Rover', 'Mars Rover ', 'Mars Rover (I previously requested 2 but I actually need 4)', 'HW: Mars Rover (MyString)']
-
-    # these intermediary names help in mapping HW names in Google Sheet to HW names in Gradescope
+    newdf, donedf = gsheets_init(gs_ass_mapping)
+    # newdf contains the rows which have NOT been processed
+    # donedf contains the rows which have already been processed
 
     #  iterate over each row and process based on the type of request
     for index, row in newdf.iterrows():
-        if row["Type of request"] == "Homework Late Day Pool":
+        email, hw = row['Email Address'], row['Homework Name']
+        print("---------------------------------------------------")
+
+        # if same email and hw exist in a row in donedf, it means it has already been processed
+        if donedf[(donedf["Email Address"] == email) & (donedf["Homework Name"] == hw)].shape[0] > 0:
+            print(f"This user {email} has already been processed for this homework {hw}. Skipping this one for now.")
             print("---------------------------------------------------")
-            email = row['Email Address']
-            hw = row['Homework Name']
+            continue
+
+        if row["Type of request"] == "Homework Late Day Pool":
             print(f"Processing Homework Late Day Pool for {hw} for student {row['Name']} with index {index}")
-
-            # if same email and hw exist in the same row in donedf, then skip this row
-            #  import ipdb; ipdb.set_trace()
-            if donedf[(donedf["Email Address"] == email) & (donedf["Homework Name"] == hw)].shape[0] > 0:
-                print(f"This user {email} has already been processed for this homework {hw}. Skipping this one for now.")
-                print("---------------------------------------------------")
-                continue
-
             if not questionary.confirm("Do you want to process this one?").ask():
-                print(f"Skipping this one for now.")
+                print("Skipping this one for now.")
                 print("---------------------------------------------------")
                 continue
 
             while True:
                 if process_late_hw(row, gs_assignments_actual, gs_assignments_redemption, gs_ass_mapping, 
-                    homework_name_tokens, canvas_late_submissions, userdb):
+                    canvas_late_submissions, userdb):
                     print(f"Operation successful for {row['Name']} with index {index}")
                     break
                 else:
@@ -439,27 +466,7 @@ if __name__ == '__main__':
 
         else:
             print("---------------------------------------------------")
-            print(f"Can't process Excused Absence for {row['Name']} with index {index} \
+            print(f"Can't process for {row['Name']} with index {index} \
                   for the type of request {row['Type of request']}")
             print("---------------------------------------------------")
-
-
-
-
-
-
-
-    import ipdb; ipdb.set_trace()
-
-
-    
-
-
-
-
-
-
-
-
-
 

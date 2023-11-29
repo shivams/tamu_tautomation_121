@@ -6,6 +6,10 @@
 *.html
 *.txt
 *.zip
+*.csv
+
+# ignore pkl files for they store our session data
+*.pkl
 
 ### Emacs ###
 # -*- mode: gitignore; -*-
