@@ -4,7 +4,6 @@
 # ignore all json, html, txt files for they may contain sensitive information (like credentials)
 *.json
 *.html
-*.txt
 *.zip
 *.csv
 
