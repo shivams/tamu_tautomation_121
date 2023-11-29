@@ -39,7 +39,8 @@ if not GRADESCOPE_USERNAME or not GRADESCOPE_PASSWORD:
 
 # Globals
 DESIRED_ROW_RANGES = [[620, 669], [1015, 1049], [1340, 1374], [1685, 1724]] #These rows are allocated to me
-
+GOOGLE_SHEET_ID = "1_m7eO_dYJjXwajyGFqEwn7GB4LmbDOMk0Ru6ALLpBfY"
+GOOGLE_SHEET_RANGE = "Form Responses 1!A:T"
 
 def questionary_select(objs: dict, prompt="Make a choice:"):
     '''
@@ -225,13 +226,14 @@ def gsheets_init(gs_ass_mapping):
     '''
     # types of requests:
     #  ['Homework Late Day Pool' 'Excused Absence' 'Labwork Free Absence']
-    get = questionary.confirm("Do you want to download the latest data from Google Sheets?").ask()
+    get = questionary.confirm("Do you want to download the latest data from Google Sheets? \
+                              You will need to have the google_credentials.json file in the current folder.").ask()
     if get:
         # Get the latest data from Google Sheets
         print("Getting the latest data from Google Sheets...")
         # Get the latest data from Google Sheets
-        sheetID = "1_m7eO_dYJjXwajyGFqEwn7GB4LmbDOMk0Ru6ALLpBfY"
-        sheetRange = "Form Responses 1!A:T"
+        sheetID = GOOGLE_SHEET_ID
+        sheetRange = GOOGLE_SHEET_RANGE
         df = gsheets(sheetID, sheetRange)
         if df is not None:
             df.to_csv("absence.csv", index=False)
@@ -239,6 +241,11 @@ def gsheets_init(gs_ass_mapping):
         else:
             print("Error getting data from Google Sheets")
     else:
+        if not Path('absence.csv').is_file():
+            print("You gotta get the absence.csv file from the Google Sheets. \
+                    I won't proceed without it.")
+            print("Download the file and place it in the current folder, and name it absence.csv")
+            raise SystemExit(101)
         print("Using existing data in absence.csv")
 
     df = pd.read_csv("absence.csv")

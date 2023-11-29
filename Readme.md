@@ -13,6 +13,19 @@ It reads the Google Sheet, checks which request is to be processed, transfers th
 
 ## Usage
 
+### Keys and such
+First of all, before running the script, you need to have the following with you:
+- a Canvas Access Token, 
+- your Gradescope username and password,
+- [OPTIONAL] a Google API Key (this is optional because if you don't have a Google API Key, you can just download the Google Sheet as a CSV file named "absence.csv" and place it in the same folder as the script).
+
+For the Canvas Access Token, go to Canvas, and then go to Account > Settings > Approved Integrations > New Access Token. 
+Add some purpose, leave the expiry date blank, and then click on "Generate Token". Copy the token and save it somewhere (you won't be able to see it again; hence make sure you save it somewhere).
+
+For Google API key, go to https://console.developers.google.com/apis/credentials, and create a new OAuth 2.0 Client ID, and download the JSON file and save it as `google_credentials.json` in the same folder as the script.
+
+### Running the script
+
 First, install the requirements:
 
 ```bash
