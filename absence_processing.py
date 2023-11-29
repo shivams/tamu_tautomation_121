@@ -121,15 +121,21 @@ def canvas_init():
     API_URL = "https://canvas.tamu.edu"
     canvas = Canvas(API_URL, API_KEY)
 
-    #Getting Courses and selecting one of them
-    print("Loading the Canvas courses for you. This may take a few seconds.")
-    courses = list(canvas.get_courses())
-    choices = [str(i)+"___"+c.name+". ID = "+str(c.id) for i,c in enumerate(courses)]
-    selected = questionary.select(
-        "Select Canvas course:",
-        choices=choices).ask()
-    selected = int(selected.split('___')[0])
-    course = courses[selected]
+    # select course given a fixed ID
+    course = canvas.get_course(258305) #CSCE 120/121 at TAMU
+
+    if not questionary.confirm(
+            f'Is this the course you want to work with? : "{course.name}" ').ask():
+
+        #Getting Courses and selecting one of them
+        print("Alrighty then. Let's load all the Canvas courses for you. This may take a few seconds.")
+        courses = list(canvas.get_courses())
+        choices = [str(i)+"___"+c.name+". ID = "+str(c.id) for i,c in enumerate(courses)]
+        selected = questionary.select(
+            "Select Canvas course:",
+            choices=choices).ask()
+        selected = int(selected.split('___')[0])
+        course = courses[selected]
 
     #Preparing the USER-DB, a dict of the form: {id: {'name': name, 'email': email}}
     users = course.get_users()

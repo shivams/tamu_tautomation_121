@@ -6,3 +6,4 @@ google-api-python-client
 canvasapi
 requests
 beautifulsoup4
+arrow>=1.2.3
