@@ -260,8 +260,10 @@ def gsheets_init(gs_ass_mapping):
     df.index = df.index + 2 # to make sure that the index matches the row number in Google Sheets
     df.fillna('', inplace=True)
 
-    # First, first required clean-up  of the Google Sheets data because students have added varying names for same Homeworks
+    # First, required clean-up  of the Google Sheets data because students have added varying names for same Homeworks
     # these intermediary names help in mapping HW names in Google Sheet to HW names in Gradescope
+    # If the mapping fails, then it won't process that HW
+    # TODO: Make this data cleaning more robust
     homework_name_tokens = [ "Scaling", "Stitching", "String", "Grade", "Dungeon", "Crawler", 
                             "CPPeers", "CPPers", "Rover", ]
     # refine the column Homework Name using intermediary tokens and mapping
