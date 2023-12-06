@@ -263,9 +263,11 @@ def gsheets_init(gs_ass_mapping):
     # First, required clean-up  of the Google Sheets data because students have added varying names for same Homeworks
     # these intermediary names help in mapping HW names in Google Sheet to HW names in Gradescope
     # If the mapping fails, then it won't process that HW
+    # NOTE: How these tokens work is that each token name is a unique substring of the actual HW name. 
+    #       This helps in mapping the HW names in Google Sheet (in which students may have used partial HW names) 
     # TODO: Make this data cleaning more robust
     homework_name_tokens = [ "Scaling", "Stitching", "String", "Grade", "Dungeon", "Crawler", 
-                            "CPPeers", "CPPers", "Rover", ]
+                            "CPPeers", "CPPers", "Rover", "Temperature" ]
     # refine the column Homework Name using intermediary tokens and mapping
     def refine_homework_name(x):
         for token in homework_name_tokens:
