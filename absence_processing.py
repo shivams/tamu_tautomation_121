@@ -40,7 +40,7 @@ if not GRADESCOPE_USERNAME or not GRADESCOPE_PASSWORD:
 
 # Globals
 # Make sure you modify these rows as per what have been assigned to you
-DESIRED_ROW_RANGES = [[620, 669], [1015, 1049], [1340, 1374], [1685, 1724]] #These rows are allocated to me
+DESIRED_ROW_RANGES = [[620, 669], [1015, 1049], [1340, 1374], [1685, 1724], [2010, 2029], [2075, 2099]] #These rows are allocated to me
 GOOGLE_SHEET_ID = "1_m7eO_dYJjXwajyGFqEwn7GB4LmbDOMk0Ru6ALLpBfY"
 GOOGLE_SHEET_RANGE = "Form Responses 1!A:T"
 
@@ -125,7 +125,7 @@ def canvas_init():
     course = canvas.get_course(258305) #CSCE 120/121 at TAMU
 
     if not questionary.confirm(
-            f'Is this the course you want to work with? : "{course.name}" ').ask():
+            f'Is this the Canvas course you want to work with? : "{course.name}" ').ask():
 
         #Getting Courses and selecting one of them
         print("Alrighty then. Let's load all the Canvas courses for you. This may take a few seconds.")
@@ -267,7 +267,7 @@ def gsheets_init(gs_ass_mapping):
     #       This helps in mapping the HW names in Google Sheet (in which students may have used partial HW names) 
     # TODO: Make this data cleaning more robust
     homework_name_tokens = [ "Scaling", "Stitching", "String", "Grade", "Dungeon", "Crawler", 
-                            "CPPeers", "CPPers", "Rover", "Temperature" ]
+                            "CPPeers", "CPPers", "Rover", "Temperature", "Paris" ]
     # refine the column Homework Name using intermediary tokens and mapping
     def refine_homework_name(x):
         for token in homework_name_tokens:
@@ -358,7 +358,7 @@ def process_late_hw(row, gs_assignments_actual, gs_assignments_redemption, gs_as
     else:
         late_score = int(canvas_sub.score)
     if late_score + late_days > 10:
-        print(f"Can't process Homework Late Day Pool for {row['Name']}. \
+        print(f"Can't process Homework Late Day Pool for {row['Name']}. They have used up all of their late days.\
                 Late days requested: {late_days}, Late days used: {late_score}")
         os.remove(temp_file_path)
         return False
