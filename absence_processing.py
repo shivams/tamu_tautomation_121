@@ -267,7 +267,7 @@ def gsheets_init(gs_ass_mapping):
     #       This helps in mapping the HW names in Google Sheet (in which students may have used partial HW names) 
     # TODO: Make this data cleaning more robust
     homework_name_tokens = [ "Scaling", "Stitching", "String", "Grade", "Dungeon", "Crawler", 
-                            "CPPeers", "CPPers", "Rover", "Temperature", "Paris" ]
+                            "CPPeers", "CPPers", "Rover", "Temperature", "Paris", "Debugging" ]
     # refine the column Homework Name using intermediary tokens and mapping
     def refine_homework_name(x):
         for token in homework_name_tokens:

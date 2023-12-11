@@ -111,20 +111,21 @@ class GSConnection():
                 return False # Should probably raise an exception.
             self.account.add_class(cid, name, shortname, year, instructor = True)
 
-        student_courses = [sibling for sibling in parsed_account_resp.find('h1', class_ ='pageHeading', string = "Student Courses").next_siblings if 'courseList' in sibling.get("class")][0]
-        for course in student_courses.find_all('a', class_ = 'courseBox'):
-            shortname = course.find('h3', class_ = 'courseBox--shortname').text
-            name = course.find('div', class_ = 'courseBox--name').text
-            cid = course.get("href").split("/")[-1]
-            
-            year= None
-            for tag in course.parent.previous_siblings:
-                if 'courseList--term' in tag.get("class"):
-                    year = tag.string
-                    break
-            if year is None:
-                return False # Should probably raise an exception.
-            self.account.add_class(cid, name, shortname, year)
+        # NOTE: Uncommented the following block because many TAs may NOT have the student courses 
+        #  student_courses = [sibling for sibling in parsed_account_resp.find('h1', class_ ='pageHeading', string = "Student Courses").next_siblings if 'courseList' in sibling.get("class")][0]
+        #  for course in student_courses.find_all('a', class_ = 'courseBox'):
+        #      shortname = course.find('h3', class_ = 'courseBox--shortname').text
+        #      name = course.find('div', class_ = 'courseBox--name').text
+        #      cid = course.get("href").split("/")[-1]
+        #
+        #      year= None
+        #      for tag in course.parent.previous_siblings:
+        #          if 'courseList--term' in tag.get("class"):
+        #              year = tag.string
+        #              break
+        #      if year is None:
+        #          return False # Should probably raise an exception.
+        #      self.account.add_class(cid, name, shortname, year)
 
 
 # THIS IS STRICTLY FOR DEVELOPMENT TESTING :( Sorry for leaving it in.
