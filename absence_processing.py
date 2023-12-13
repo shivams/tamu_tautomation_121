@@ -12,6 +12,8 @@ import os
 import pickle
 import sys
 sys.setrecursionlimit(10000) # required for making pickling work TODO: remove this later
+from datetime import datetime, timedelta
+
 
 # Google Sheets related imports
 import os.path
@@ -40,7 +42,7 @@ if not GRADESCOPE_USERNAME or not GRADESCOPE_PASSWORD:
 
 # Globals
 # Make sure you modify these rows as per what have been assigned to you
-DESIRED_ROW_RANGES = [[620, 669], [1015, 1049], [1340, 1374], [1685, 1724], [2010, 2029], [2075, 2099]] #These rows are allocated to me
+DESIRED_ROW_RANGES = [[620, 669], [1015, 1049], [1340, 1374], [1685, 1724], [2010, 2029], [2075, 2099], [2278, 2279]] #These rows are allocated to me
 GOOGLE_SHEET_ID = "1_m7eO_dYJjXwajyGFqEwn7GB4LmbDOMk0Ru6ALLpBfY"
 GOOGLE_SHEET_RANGE = "Form Responses 1!A:T"
 
@@ -234,8 +236,8 @@ def gsheets_init(gs_ass_mapping):
     '''
     # types of requests:
     #  ['Homework Late Day Pool' 'Excused Absence' 'Labwork Free Absence']
-    get = questionary.confirm("Do you want to download the latest data from Google Sheets? \
-                              You will need to have the google_credentials.json file in the current folder.").ask()
+    get = questionary.confirm("Do you want to download the latest data from Google Sheets? " \
+                              "You will need to have the google_credentials.json file in the current folder.").ask()
     if get:
         # Get the latest data from Google Sheets
         print("Getting the latest data from Google Sheets...")
@@ -323,33 +325,42 @@ def process_late_hw(row, gs_assignments_actual, gs_assignments_redemption, gs_as
     hw_actual = gs_assignments_actual[hw_name]
     hw_redemption = gs_assignments_redemption[gs_ass_mapping[hw_name]]
 
+    maxdate = None
     # get the highest scoring submission from the redemption assignment, and get its zip file
-    submission_redemption = hw_redemption.get_submission(email=email)
-    if not submission_redemption:
-        print(f"This student: {email} did not submit a redemption homework!")
-        return False
-    submission_actual = hw_actual.get_submission(email=email)
-    if submission_actual:
-        if submission_actual.score == submission_redemption.score:
-            print("This homework has probably been processed. \
-                  I see that there is a submission already uploaded on the original homework.")
+    while True:
+        # TODO: Thie infinite loop is a hacky "GOTO" way to handle the case where you'd want to fetch an older submission from Redemption
+        # Make this better and more "functional".
+        submission_redemption = hw_redemption.get_submission(email=email, maxdate=maxdate)
+        if not submission_redemption:
+            print(f"This student: {email} either did not submit a redemption homework, or submitted it too late!")
             return False
-    print("Downloading the submission ZIP from Redemption HW")
-    submission_zip_resp = course_gs.session.get('https://www.gradescope.com/courses/'+
-                                                course_gs.cid+'/assignments/'+hw_redemption.aid+
-                                                '/submissions/'+submission_redemption.subid+'.zip')
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as temp_file:
-        temp_file.write(submission_zip_resp.content)
-        temp_file_path = temp_file.name  # Store the temporary file path
+        submission_actual = hw_actual.get_submission(email=email)
+        if submission_actual:
+            if submission_actual.score >= submission_redemption.score:
+                print("This homework has probably been processed." \
+                      "I see that there is a submission already uploaded on the original homework," \
+                      "which has a score greater than or equal to the redemption HW")
+                return False
+        print("Downloading the submission ZIP from Redemption HW")
+        submission_zip_resp = course_gs.session.get('https://www.gradescope.com/courses/'+
+                                                    course_gs.cid+'/assignments/'+hw_redemption.aid+
+                                                    '/submissions/'+submission_redemption.subid+'.zip')
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as temp_file:
+            temp_file.write(submission_zip_resp.content)
+            temp_file_path = temp_file.name  # Store the temporary file path
 
-    # Compare the submission time of the submission with the due date of actual homework
-    # if the submission is within the 4 days after due date, then we can post the submission
-    time_diff = submission_redemption.time - hw_actual.due_date
-    late_days = time_diff.days + 1
-    if late_days > 4:
-        print(f"Submission for {row['Name']} is not within 4 days of due date")
-        os.remove(temp_file_path)
-        return False
+        # Compare the submission time of the submission with the due date of actual homework
+        # if the submission is within the 4 days after due date, then we can post the submission
+        time_diff = submission_redemption.time - hw_actual.due_date
+        late_days = time_diff.days + 1
+        if late_days > 4:
+            print(f"Submission for {row['Name']} that I fetched with the highest score is not within 4 days of due date")
+            if questionary.confirm("Do you want to try again with an older, possibly lower scoring submission from the Redemption HW?").ask():
+                maxdate = hw_actual.due_date + timedelta(days=4)
+                continue
+            os.remove(temp_file_path)
+            return False
+        break
 
     # get the late days from canvas by matching user email
     canvas_sub = next(sub for sub in canvas_late_submissions if email == userdb[sub.user_id]['email'])
@@ -359,12 +370,12 @@ def process_late_hw(row, gs_assignments_actual, gs_assignments_redemption, gs_as
         late_score = int(canvas_sub.score)
     if late_score + late_days > 10:
         print(f"Can't process Homework Late Day Pool for {row['Name']}. They have used up all of their late days.\
-                Late days requested: {late_days}, Late days used: {late_score}")
+                Late days requested: {late_days}, Total Late days already used: {late_score}")
         os.remove(temp_file_path)
         return False
 
     print(f"Processing Homework Late Day Pool for {row['Name']}. \
-            Late days requested: {late_days}, Late days used: {late_score}")
+            Late days requested: {late_days}, Total Late days already used: {late_score}")
     
     # Now we have the zip file from Redemption HW. We gotta transfer it to Actual
     print("Uploading the submission ZIP to actual HW")
@@ -438,54 +449,63 @@ def init():
 
 if __name__ == '__main__':
 
-    # The main init initializing Canvas and Gradescope stuff
-    course_gs, gs_assignments_actual, gs_assignments_redemption, gs_ass_mapping, course_canvas, userdb = init()
+    try:
+        # The main init initializing Canvas and Gradescope stuff
+        course_gs, gs_assignments_actual, gs_assignments_redemption, gs_ass_mapping, course_canvas, userdb = init()
 
-    # This should not be pickled
-    canvas_late_submissions = canvas_get_assignment_submissions(course_canvas,
-                                         prompt="Select the Canvas Assignment which records the late days for HW:")
+        # This should not be pickled
+        canvas_late_submissions = canvas_get_assignment_submissions(course_canvas,
+                                             prompt="Select the Canvas Assignment which records the late days for HW:")
 
-    # Google Sheets Init Stuff
-    newdf, donedf = gsheets_init(gs_ass_mapping)
-    # newdf contains the rows which have NOT been processed
-    # donedf contains the rows which have already been processed
+        # Google Sheets Init Stuff
+        newdf, donedf = gsheets_init(gs_ass_mapping)
+        # newdf contains the rows which have NOT been processed
+        # donedf contains the rows which have already been processed
 
-    #  iterate over each row and process based on the type of request
-    for index, row in newdf.iterrows():
-        email, hw = row['Email Address'], row['Homework Name']
-        print("---------------------------------------------------")
-
-        # if same email and hw exist in a row in donedf, it means it has already been processed
-        if donedf[(donedf["Email Address"] == email) & (donedf["Homework Name"] == hw)].shape[0] > 0:
-            print(f"This user {email} has already been processed for this homework {hw}. Skipping this one for now.")
+        #  iterate over each row and process based on the type of request
+        for index, row in newdf.iterrows():
+            email, hw = row['Email Address'], row['Homework Name']
             print("---------------------------------------------------")
-            continue
 
-        if row["Type of request"] == "Homework Late Day Pool":
-            print(f"Processing Homework Late Day Pool for {hw} for student {row['Name']} with index {index}")
-            if not questionary.confirm("Do you want to process this one?").ask():
-                print("Skipping this one for now.")
+            # if same email and hw exist in a row in donedf, it means it has already been processed
+            if donedf[(donedf["Email Address"] == email) & (donedf["Homework Name"] == hw)].shape[0] > 0:
+                print(f"This user {email} has already been processed for this homework {hw}. Skipping this one for now.")
                 print("---------------------------------------------------")
                 continue
 
-            while True:
-                if process_late_hw(row, gs_assignments_actual, gs_assignments_redemption, gs_ass_mapping, 
-                    canvas_late_submissions, userdb):
-                    print(f"Operation successful for {row['Name']} with index {index}")
-                    break
-                else:
-                    if questionary.confirm("Failed to process Homework Late Day Pool for this one. \
-                                        Do you want to try again?").ask():
-                        print(f"Trying again for {row['Name']} with index {index}")
-                        continue
-                    else:
-                        print(f"Skipping this one for now.")
+            if row["Type of request"] == "Homework Late Day Pool":
+                print(f"Processing Homework Late Day Pool for {hw} for student {row['Name']} with index {index}")
+                if not questionary.confirm("Do you want to process this one?").ask():
+                    print("Skipping this one for now.")
+                    print("---------------------------------------------------")
+                    continue
+
+                while True:
+                    if process_late_hw(row, gs_assignments_actual, gs_assignments_redemption, gs_ass_mapping, 
+                        canvas_late_submissions, userdb):
+                        print(f"Operation successful for {row['Name']} with index {index}")
                         break
+                    else:
+                        if questionary.confirm("Failed to process Homework Late Day Pool for this one. \
+                                            Do you want to try again?").ask():
+                            print(f"Trying again for {row['Name']} with index {index}")
+                            continue
+                        else:
+                            print(f"Skipping this one for now.")
+                            break
+                    print("---------------------------------------------------")
+
+            else:
+                print("---------------------------------------------------")
+                print(f"Can't process for {row['Name']} with index {index} \
+                      for the type of request {row['Type of request']}")
                 print("---------------------------------------------------")
 
-        else:
-            print("---------------------------------------------------")
-            print(f"Can't process for {row['Name']} with index {index} \
-                  for the type of request {row['Type of request']}")
-            print("---------------------------------------------------")
+    except KeyboardInterrupt:
+        print("Exiting...")
+        raise SystemExit(0)
+
+
+
+
 

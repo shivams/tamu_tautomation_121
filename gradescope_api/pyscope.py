@@ -131,32 +131,16 @@ class GSConnection():
 # THIS IS STRICTLY FOR DEVELOPMENT TESTING :( Sorry for leaving it in.
 if __name__=="__main__":
     conn = GSConnection()
-    conn.login("shivam@tamu.edu", "v97T@$uUafbaYa7jKK")
+    conn.login("email@email.com", "password")
     print(conn.state)
     conn.get_account()
 
     course = conn.account.instructor_courses['569119']
     course._lazy_load_assignments()
 
-    ass = course.assignments['[HW Redemption] Image Scaling']
-    #  ass.get_submissions()
-    #  sub = ass.submissions[0]
-
-    #  for sub in ass.submissions:
-        #  if 'Shivam' in sub.name:
-            #  break
-
-    print(f"Now submitting for student")
-    ass.post_submission('202602737.zip', '3447483')
+    ass = course.assignments['HW Name']
 
 
-    #TODO: ((2023-11-24)) Currently stuck at processing the submission. 
-    #Work going on in submission.py
-    #Seems like we only have access to that particular submission and not the submission history
-    #Also, I am not able to POST the submission
-
-
-    import ipdb; ipdb.set_trace()
 
 
 

@@ -87,20 +87,6 @@ class GSAssignment():
             try:
                 submission_resp = self.course.session.get(submission_url)
                 submission_json = json.loads(submission_resp.text)
-                '''
-                 'assignment_submission': {'active': True,
-                                           'created_at': '2023-11-25T08:25:54.494897-08:00',
-                                           'export_allowed': True,
-                                           'id': 215243878,
-                                           'lateness_in_words': '42 Days, 10 Hours Late',
-                                           'score': '40.75',
-                                           'source': 'web',
-                                           'start_time_utility_submission': False,
-                                           'status': 'processed'},
-                 'course_members': [{'email': 'jackastevenson@tamu.edu',
-                                     'id': 4055195,
-                                     'name': 'Jack Stevenson'}],
-                '''
                 #  import ipdb; ipdb.set_trace()
                 score = submission_json['assignment_submission']['score']
                 time = datetime.fromisoformat(submission_json['assignment_submission']['created_at'])
@@ -119,8 +105,10 @@ class GSAssignment():
 
 
 
-    def get_submission(self, email):
+    def get_submission(self, email, maxdate=None):
         '''
+        email: The email of the student whose submission we want to get.
+        maxdate (optional): datetime object. If provided, only submissions on or before this date will be considered.
         Returns a submission object for the given email.
         '''
         submission_resp = self.course.session.get('https://www.gradescope.com/courses/'+self.course.cid+
@@ -136,7 +124,9 @@ class GSAssignment():
                 continue
             if email == row.find_all('td')[2].text:
                 submission_id = row.find_all('td')[0].find_all('a')[0].get('href').split('/')[-1]
-                submission = self.get_highest_score_submission(submission_id)
+                submission = self.get_highest_score_submission(submission_id, maxdate)
+                if not submission:
+                    return None
                 score = submission['score']
                 time = datetime.fromisoformat(submission['created_at'])
                 submission_id = submission['id']
@@ -163,58 +153,6 @@ class GSAssignment():
         with open('review_grades.html', 'w') as f:
             f.write(str(parsed_submission_resp))
 
-        '''
-        <table class="table js-reviewGradesTable">
-        <thead>
-        <tr>
-            <th class="js-firstLastName">First & Last Name <div class="table--headingButtonContainer js-swapNameColumns"> <button class= "tiiBtn tiiBtn-tertiary tiiBtn-extraSmall">Swap</button></div> </th>
-            <th class="js-lastFirstName">Last, First Name <div class="table--headingButtonContainer js-swapNameColumns"> <button class= "tiiBtn tiiBtn-tertiary tiiBtn-extraSmall">Swap</button></div> </th>
-            <th>Email</th>
-            <th class="js-sections">Sections</th>
-            <th class="u-centeredText"><span aria-label="Score out of 100.0" role="region">Score/100.0</span></th>
-            <th class="u-centeredText">Graded?</th>
-            <th class="u-centeredText">Viewed?</th>
-            <th class="u-centeredText">Canvas</th>
-            <th>Time (<abbr title= "Central Time (US &amp; Canada)">CST</abbr>)</th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr>
-            <td class="table--primaryLink"><a class="link-gray" href= "/courses/569119/assignments/3394470/submissions/199538676">Nikola Slavchev</a></td>
-            <td class="table--primaryLink"><a class="link-gray" href= "/courses/569119/assignments/3394470/submissions/199538676">Slavchev, Nikola</a></td>
-            <td><a href="mailto:nislavch@tamu.edu">nislavch@tamu.edu</a></td>
-            <td></td>
-            <td class="u-centeredText" data-sort="1.0">100.0</td>
-            <td class="u-centeredText statusIcon-active" data-sort="1"></td>
-            <td class="u-centeredText statusIcon-inactive" data-sort="0"> <span aria-hidden="true">--</span><span class="sr-only">Submission has not been viewed.</span></td>
-            <td class="u-centeredText" data-sort="1"></td>
-            <td data-sort="2023-10-04 19:57:16 -0500"><time datetime= "2023-10-04 19:57:16 -0500">Oct 04 at 7:57PM</time></td>
-        </tr>
-        <tr>
-            <td>Ernesto Fuentes Hernandez</td>
-            <td>Fuentes Hernandez, Ernesto</td>
-            <td><a href= "mailto:ernesto_fuentes12@tamu.edu">ernesto_fuentes12@tamu.edu</a></td>
-            <td> <div class="sectionsColumnCell"> <div class="sectionsColumnCell--section"><span class= "sectionsColumnCell--sectionSpan" title= "csce-121-505">csce-121-505</span></div> </div> </td>
-            <td class="table--hiddenColumn"></td>
-            <td class="u-centeredText" colspan="6" data-sort="-1">This student doesn't have a submission.</td>
-            <td class="table--hiddenColumn" data-sort="-1"></td>
-            <td class="table--hiddenColumn" data-sort="-1"></td>
-            <td class="table--hiddenColumn"></td>
-        </tr>
-        <tr>
-            <td class="table--primaryLink"><a class="link-gray" href= "/courses/569119/assignments/3394470/submissions/215194755">Carson Burkhart</a></td>
-            <td class="table--primaryLink"><a class="link-gray" href= "/courses/569119/assignments/3394470/submissions/215194755">Burkhart, Carson</a></td>
-            <td><a href= "mailto:ctburkhart@tamu.edu">ctburkhart@tamu.edu</a></td>
-            <td> <div class="sectionsColumnCell"> <div class="sectionsColumnCell--section"><span class= "sectionsColumnCell--sectionSpan" title= "csce-121-502">csce-121-502</span></div> </div> </td>
-            <td class="u-centeredText" data-sort="0.78">78.0</td>
-            <td class="u-centeredText statusIcon-active" data-sort="1"></td>
-            <td class="u-centeredText statusIcon-inactive" data-sort="0"> <span aria-hidden="true">--</span><span class="sr-only">Submission has not been viewed.</span></td>
-            <td class="u-centeredText" data-sort="1"></td>
-            <td data-sort="2023-11-24 13:42:18 -0600"><time datetime= "2023-11-24 13:42:18 -0600">Nov 24 at 1:42PM</time></td>
-        </tr>
-        </tbody>
-        </table>
-        '''
 
         table = parsed_submission_resp.find('table', attrs={'class':'table js-reviewGradesTable'})
         tbody = table.find('tbody')
@@ -226,28 +164,8 @@ class GSAssignment():
                 continue
             submission_id = row.find_all('td')[0].find_all('a')[0].get('href').split('/')[-1]
             email = row.find_all('td')[2].text
-            #  score = row.find_all('td')[4].text
-            #  time = row.find_all('td')[8].text
 
             submission = self.get_highest_score_submission(submission_id)
-            # Sample submission:
-            #  {
-              #  "id": 202602831,
-              #  "created_at": "2023-10-14T01:45:50.720687-07:00",
-              #  "owners": [
-                #  {
-                  #  "id": 4077592,
-                  #  "active": false,
-                  #  "initials": "RDCL",
-                  #  "name": "Roberto Del Callejo Lopez"
-                #  }
-              #  ],
-              #  "show_path": "/courses/569119/assignments/3394470/submissions/202602831",
-              #  "active": false,
-              #  "activate_path": "/courses/569119/assignments/3394470/submissions/202602831/activate",
-              #  "can_activate": true,
-              #  "score": "88.75"
-            # }
 
             score = submission['score']
             time = datetime.fromisoformat(submission['created_at'])
@@ -271,56 +189,15 @@ class GSAssignment():
 
 
 
-    def get_highest_score_submission(self, sid) -> dict:
+    def get_highest_score_submission(self, sid, maxdate=None) -> dict:
         '''
         Get the highest score submission for a student.
         Goes through the whole history of submissions.
+        maxdate (optional): datetime object. If provided, only submissions on or before this date will be considered.
         '''
         #  https://www.gradescope.com/courses/569119/assignments/3394470/submissions/202602875.json?content=react&only_keys[]=past_submissions
         submission_resp = self.course.session.get('https://www.gradescope.com/courses/'+self.course.cid+
                                                     '/assignments/'+self.aid+'/submissions/'+sid+'.json?content=react&only_keys[]=past_submissions')
-        # this returns a json in the following form:
-        '''
-        {
-          "past_submissions": [
-            {
-              "id": 202602875,
-              "created_at": "2023-10-14T01:47:12.746147-07:00",
-              "owners": [
-                {
-                  "id": 4077592,
-                  "active": true,
-                  "initials": "RDCL",
-                  "name": "Roberto Del Callejo Lopez"
-                }
-              ],
-              "show_path": "/courses/569119/assignments/3394470/submissions/202602875",
-              "active": false,
-              "activate_path": "/courses/569119/assignments/3394470/submissions/202602875/activate",
-              "can_activate": true,
-              "score": "89.0"
-            },
-            {
-              "id": 202602831,
-              "created_at": "2023-10-14T01:45:50.720687-07:00",
-              "owners": [
-                {
-                  "id": 4077592,
-                  "active": false,
-                  "initials": "RDCL",
-                  "name": "Roberto Del Callejo Lopez"
-                }
-              ],
-              "show_path": "/courses/569119/assignments/3394470/submissions/202602831",
-              "active": false,
-              "activate_path": "/courses/569119/assignments/3394470/submissions/202602831/activate",
-              "can_activate": true,
-              "score": "88.75"
-            },
-          ],
-          "alert": null
-        }
-        '''
 
         # now process this json
         submission_json = json.loads(submission_resp.text)
@@ -329,6 +206,9 @@ class GSAssignment():
         highest_score = 0
         highest_score_submission = None
         for submission in submission_json['past_submissions']:
+            date = datetime.fromisoformat(submission['created_at'])
+            if maxdate and date > maxdate:
+                continue
             if float(submission['score']) >= highest_score:
                 highest_score = float(submission['score'])
                 highest_score_submission = submission
