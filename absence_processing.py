@@ -42,7 +42,7 @@ if not GRADESCOPE_USERNAME or not GRADESCOPE_PASSWORD:
 
 # Globals
 # Make sure you modify these rows as per what have been assigned to you
-DESIRED_ROW_RANGES = [[620, 669], [1015, 1049], [1340, 1374], [1685, 1724], [2010, 2029], [2075, 2099], [2278, 2279]] #These rows are allocated to me
+DESIRED_ROW_RANGES = [[79, 80], [620, 669], [1015, 1049], [1340, 1374], [1685, 1724], [2010, 2029], [2075, 2099], [2278, 2279]] #These rows are allocated to me
 GOOGLE_SHEET_ID = "1_m7eO_dYJjXwajyGFqEwn7GB4LmbDOMk0Ru6ALLpBfY"
 GOOGLE_SHEET_RANGE = "Form Responses 1!A:T"
 
@@ -269,7 +269,7 @@ def gsheets_init(gs_ass_mapping):
     #       This helps in mapping the HW names in Google Sheet (in which students may have used partial HW names) 
     # TODO: Make this data cleaning more robust
     homework_name_tokens = [ "Scaling", "Stitching", "String", "Grade", "Dungeon", "Crawler", 
-                            "CPPeers", "CPPers", "Rover", "Temperature", "Paris", "Debugging" ]
+                            "CPPeers", "CPPers", "Rover", "Temperature", "Paris", "Debugging", "Mountain", "Valley" ]
     # refine the column Homework Name using intermediary tokens and mapping
     def refine_homework_name(x):
         for token in homework_name_tokens:
