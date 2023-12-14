@@ -33,19 +33,20 @@ GRADESCOPE_USERNAME = os.environ.get("GRADESCOPE_USERNAME")
 GRADESCOPE_PASSWORD = os.environ.get("GRADESCOPE_PASSWORD")
 if not GRADESCOPE_USERNAME or not GRADESCOPE_PASSWORD:
     # prompt the user to enter the Gradescope username and password
-    GRADESCOPE_USERNAME = questionary.text("Enter your Gradescope username:").ask()
-    GRADESCOPE_PASSWORD = questionary.password("Enter your Gradescope password:").ask()
-    print("For future convenience, I am saving your username and password in your shellrc files.")
-    # save the username and password in the shellrc files
-    with open(os.path.expanduser('~/.bashrc'), 'a') as f:
-        f.write(f"export GRADESCOPE_USERNAME={GRADESCOPE_USERNAME}\n")
-        f.write(f"export GRADESCOPE_PASSWORD={GRADESCOPE_PASSWORD}\n")
-    with open(os.path.expanduser('~/.zshrc'), 'a') as f:
-        f.write(f"export GRADESCOPE_USERNAME={GRADESCOPE_USERNAME}\n")
-        f.write(f"export GRADESCOPE_PASSWORD={GRADESCOPE_PASSWORD}\n")
-    # set the environment variables
-    os.environ["GRADESCOPE_USERNAME"] = GRADESCOPE_USERNAME
-    os.environ["GRADESCOPE_PASSWORD"] = GRADESCOPE_PASSWORD
+    try:
+        GRADESCOPE_USERNAME = questionary.text("Enter your Gradescope username:").ask()
+        GRADESCOPE_PASSWORD = questionary.password("Enter your Gradescope password:").ask()
+        print("For future convenience, I am saving your username and password in your shellrc files. " \
+              "Next time you run the script, first reload your shell by closing and re-opening the terminal")
+        # save the username and password in the shellrc files
+        with open(os.path.expanduser('~/.bashrc'), 'a') as f:
+            f.write(f"export GRADESCOPE_USERNAME='{GRADESCOPE_USERNAME}'\n")
+            f.write(f"export GRADESCOPE_PASSWORD='{GRADESCOPE_PASSWORD}'\n")
+        with open(os.path.expanduser('~/.zshrc'), 'a') as f:
+            f.write(f"export GRADESCOPE_USERNAME='{GRADESCOPE_USERNAME}'\n")
+            f.write(f"export GRADESCOPE_PASSWORD='{GRADESCOPE_PASSWORD}'\n")
+    except KeyboardInterrupt:
+        print("Skipping saving the username and password in your shellrc files.")
 
 
 # Globals
