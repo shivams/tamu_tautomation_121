@@ -35,14 +35,24 @@ if not GRADESCOPE_USERNAME or not GRADESCOPE_PASSWORD:
     # prompt the user to enter the Gradescope username and password
     GRADESCOPE_USERNAME = questionary.text("Enter your Gradescope username:").ask()
     GRADESCOPE_PASSWORD = questionary.password("Enter your Gradescope password:").ask()
-    print("For future convenience, you can set the GRADESCOPE_USERNAME and GRADESCOPE_PASSWORD in your environment variables as follows:")
-    print("export GRADESCOPE_USERNAME=<your username>")
-    print("export GRADESCOPE_PASSWORD=<your password>")
-    print("You can also set these in your ~/.bashrc or ~/.zshrc file")
+    print("For future convenience, I am saving your username and password in your shellrc files.")
+    # save the username and password in the shellrc files
+    with open(os.path.expanduser('~/.bashrc'), 'a') as f:
+        f.write(f"export GRADESCOPE_USERNAME={GRADESCOPE_USERNAME}\n")
+        f.write(f"export GRADESCOPE_PASSWORD={GRADESCOPE_PASSWORD}\n")
+    with open(os.path.expanduser('~/.zshrc'), 'a') as f:
+        f.write(f"export GRADESCOPE_USERNAME={GRADESCOPE_USERNAME}\n")
+        f.write(f"export GRADESCOPE_PASSWORD={GRADESCOPE_PASSWORD}\n")
+    # set the environment variables
+    os.environ["GRADESCOPE_USERNAME"] = GRADESCOPE_USERNAME
+    os.environ["GRADESCOPE_PASSWORD"] = GRADESCOPE_PASSWORD
+
 
 # Globals
 # Make sure you modify these rows as per what have been assigned to you
-DESIRED_ROW_RANGES = [[79, 80], [620, 669], [1015, 1049], [1340, 1374], [1685, 1724], [2010, 2029], [2075, 2099], [2278, 2279]] #These rows are allocated to me
+DESIRED_ROW_RANGES = [[79, 80], [620, 669], [1015, 1049], [1340, 1374], [1685, 1724], [2010, 2029], [2075, 2099], [2278, 2279], [2232, 2234],
+                        [2236, 2236]
+                      ] #These rows are allocated to me
 GOOGLE_SHEET_ID = "1_m7eO_dYJjXwajyGFqEwn7GB4LmbDOMk0Ru6ALLpBfY"
 GOOGLE_SHEET_RANGE = "Form Responses 1!A:T"
 
