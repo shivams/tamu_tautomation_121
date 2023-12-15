@@ -66,6 +66,9 @@ class GSAssignment():
             submission_files = []
             for filename in os.listdir(temp_dir):
                 file_path = os.path.join(temp_dir, filename)
+                # skip sub-directories. Only upload files
+                if not os.path.isfile(file_path):
+                    continue
                 submission_files.append(('submission[files][]', (filename, open(file_path, 'rb'), 'application/octet-stream')))
 
 

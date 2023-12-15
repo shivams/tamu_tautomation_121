@@ -52,7 +52,9 @@ if not GRADESCOPE_USERNAME or not GRADESCOPE_PASSWORD:
 # Globals
 # Make sure you modify these rows as per what have been assigned to you
 DESIRED_ROW_RANGES = [[79, 80], [620, 669], [1015, 1049], [1340, 1374], [1685, 1724], [2010, 2029], [2075, 2099], [2278, 2279], [2232, 2234],
-                        [2236, 2236]
+                      [2236, 2236],
+                      [784, 784],
+                      [2200, 2302]
                       ] #These rows are allocated to me
 GOOGLE_SHEET_ID = "1_m7eO_dYJjXwajyGFqEwn7GB4LmbDOMk0Ru6ALLpBfY"
 GOOGLE_SHEET_RANGE = "Form Responses 1!A:T"
@@ -327,16 +329,41 @@ def process_late_hw(row, gs_assignments_actual, gs_assignments_redemption, gs_as
     email = row['Email Address']
 
     # get the Gradescope HW name using intermediary tokens
-    if hw_name not in gs_assignments_actual.keys():
-        print(f"Can't process Homework Late Day Pool for {row['Name']}. \
-                 Because I can't understand this HW name: {hw_name} ")
-        return False
+    while True:
+        if hw_name not in gs_assignments_actual.keys():
+            print(f"Can't process Homework Late Day Pool for {row['Name']}. \
+                     Because I can't understand this HW name: {hw_name} ")
+            if questionary.confirm("Can you tell me the HW name they intended?").ask():
+                token = questionary.text("Tell me then: ").ask()
+                token, _ = find_best_match(token, gs_assignments_actual.keys())
+                if questionary.confirm(f"Is this the HW name you intended: {token} ").ask():
+                    hw_name = token
+                    break
+            else:
+                return False
+        else:
+            break
 
     # get the assignment objects
     hw_actual = gs_assignments_actual[hw_name]
     hw_redemption = gs_assignments_redemption[gs_ass_mapping[hw_name]]
 
-    maxdate = None
+    # get the late days from canvas by matching user email
+    canvas_sub = next(sub for sub in canvas_late_submissions if email == userdb[sub.user_id]['email'])
+    if not canvas_sub.score:
+        late_score = 0
+    else:
+        late_score = int(canvas_sub.score)
+    late_remaining = 10 - late_score
+    if late_remaining >=4:
+        maxdate = hw_actual.due_date + timedelta(days=4)
+        print(f"This user has total {late_remaining} late days remaining out of 10."\
+              f"Hence I will search for redemption for upto 4 late days")
+    else:
+        print(f"This user has total {late_remaining} late days remaining out of 10."\
+              f"Hence I will search for redemption for upto {late_remaining} late days")
+        maxdate = hw_actual.due_date + timedelta(days=late_remaining)
+
     # get the highest scoring submission from the redemption assignment, and get its zip file
     while True:
         # TODO: Thie infinite loop is a hacky "GOTO" way to handle the case where you'd want to fetch an older submission from Redemption
@@ -351,6 +378,8 @@ def process_late_hw(row, gs_assignments_actual, gs_assignments_redemption, gs_as
                 print("This homework has probably been processed." \
                       "I see that there is a submission already uploaded on the original homework," \
                       "which has a score greater than or equal to the redemption HW")
+                print(f"Check the Original (old) Submission here: {submission_actual.url}")
+                print(f"Check Redemption Submission here: {submission_redemption.url}")
                 return False
         print("Downloading the submission ZIP from Redemption HW")
         submission_zip_resp = course_gs.session.get('https://www.gradescope.com/courses/'+
@@ -366,12 +395,21 @@ def process_late_hw(row, gs_assignments_actual, gs_assignments_redemption, gs_as
         late_days = time_diff.days + 1
         if late_days > 4:
             print(f"Submission for {row['Name']} that I fetched with the highest score is not within 4 days of due date")
+            if submission_actual:
+                print(f"Check the Original (old) Submission here: {submission_actual.url}")
+            print(f"Check Redemption Submission here: {submission_redemption.url}")
             if questionary.confirm("Do you want to try again with an older, possibly lower scoring submission from the Redemption HW?").ask():
                 maxdate = hw_actual.due_date + timedelta(days=4)
                 continue
             os.remove(temp_file_path)
             return False
         break
+
+    if submission_actual:
+        print(f"Check the Original (old) Submission here: {submission_actual.url}")
+    else:
+        print("No existing submission found for this student in the actual HW.")
+    print(f"Check Redemption Submission here: {submission_redemption.url}")
 
     # get the late days from canvas by matching user email
     canvas_sub = next(sub for sub in canvas_late_submissions if email == userdb[sub.user_id]['email'])
@@ -392,7 +430,7 @@ def process_late_hw(row, gs_assignments_actual, gs_assignments_redemption, gs_as
     print("Uploading the submission ZIP to actual HW")
     new_submission = hw_actual.post_submission(temp_file_path, submission_redemption.student_id)
     if new_submission:
-        print(f"Successfully posted submission for {row['Name']} with rowNum: {index}")
+        print(f"Successfully posted submission for {row['Name']} with rowNum: {index} at url: {new_submission.url}")
     else:
         print(f"Failed to post submission for {row['Name']} with rowNum: {index}")
         os.remove(temp_file_path)
@@ -497,8 +535,8 @@ if __name__ == '__main__':
                         print(f"Operation successful for {row['Name']} with index {index}")
                         break
                     else:
-                        if questionary.confirm("Failed to process Homework Late Day Pool for this one. \
-                                            Do you want to try again?").ask():
+                        if questionary.confirm("Failed to process Homework Late Day Pool for this one." \
+                                                "Do you want to try again?").ask():
                             print(f"Trying again for {row['Name']} with index {index}")
                             continue
                         else:
